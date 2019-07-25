@@ -45,8 +45,10 @@ else ifeq ($(MANAGED_MEMORY),y)
 	DEFINE += -DUSE_MANAGED_MEMORY
 else ifeq ($(ZERO_COPY),y)
 	DEFINE += -DUSE_ZERO_COPY
-else
+else ifeq ($(PAGEABLE_MEMORY),y)
 	DEFINE += -DUSE_HOST_PAGEABLE_AND_DEVICE_MEMORY
+else
+	DEFINE += -DRUN_ALL
 endif
 
 #==========================

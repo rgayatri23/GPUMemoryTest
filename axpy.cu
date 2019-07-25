@@ -64,6 +64,177 @@ __global__ void axpyKernel(int N, int M, dataType a, dataType *Y, dataType *X)
             Y(i,j) += a * X(i,j);
 }
 
+void zero_copy(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+{
+  int device;
+  checkCudaErrors(cudaSetDevice(3));
+  checkCudaErrors(cudaGetDevice(&device));
+//  cout << "zero-copy : Device number = " << device << endl;
+  timeval startMemAllocTimer, endMemAllocTimer,
+          startKernelTimer, endKernelTimer;
+
+  dataType *Y, *X;
+  dataType *d_Y, *d_X;
+  dim3 grid(N,1,1);
+  dim3 threads(M,1,1);
+
+  dataType a = 0.5;
+  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+
+  gettimeofday(&startMemAllocTimer, NULL);
+  checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaMallocHost(&Y, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaHostGetDevicePointer(&d_X,X,0));
+  checkCudaErrors(cudaHostGetDevicePointer(&d_Y,Y,0));
+  gettimeofday(&endMemAllocTimer, NULL);
+
+  memset(Y,0,N*M*sizeof(dataType));
+  for(int i = 0; i < N; ++i)
+      for(int j = 0; j < M; ++j)
+          X[i*M + j] = rand1 * (i+1);
+
+  gettimeofday(&startKernelTimer, NULL);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  checkCudaErrors(cudaDeviceSynchronize());
+  gettimeofday(&endKernelTimer, NULL);
+
+  checkCudaErrors(cudaFreeHost(X));
+  checkCudaErrors(cudaFreeHost(Y));
+
+  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+}
+
+
+void managed_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+{
+  int device;
+  checkCudaErrors(cudaSetDevice(2));
+  checkCudaErrors(cudaGetDevice(&device));
+//  cout << "managed-memory : Device number = " << device << endl;
+  timeval startMemAllocTimer, endMemAllocTimer,
+          startKernelTimer, endKernelTimer;
+
+  dataType *d_Y, *d_X;
+  dim3 grid(N,1,1);
+  dim3 threads(M,1,1);
+
+  dataType a = 0.5;
+  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+
+  gettimeofday(&startMemAllocTimer, NULL);
+  checkCudaErrors(cudaMallocManaged(&d_X, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaMallocManaged(&d_Y, N*M*sizeof(dataType)));
+  gettimeofday(&endMemAllocTimer, NULL);
+
+  gettimeofday(&startKernelTimer, NULL);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  checkCudaErrors(cudaDeviceSynchronize());
+  gettimeofday(&endKernelTimer, NULL);
+
+  checkCudaErrors(cudaFree(d_X));
+  checkCudaErrors(cudaFree(d_Y));
+
+  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+}
+
+void pinned_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+{
+  int device;
+  checkCudaErrors(cudaSetDevice(1));
+  checkCudaErrors(cudaGetDevice(&device));
+//  cout << "pinned-memory : Device number = " << device << endl;
+  timeval startMemAllocTimer, endMemAllocTimer,
+          startKernelTimer, endKernelTimer;
+
+  dataType *Y, *X;
+  dataType *d_Y, *d_X;
+  dim3 grid(N,1,1);
+  dim3 threads(M,1,1);
+
+  dataType a = 0.5;
+  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+
+  gettimeofday(&startMemAllocTimer, NULL);
+  checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaMallocHost(&Y, N*M*sizeof(dataType)));
+    //Allocate memory on device
+  checkCudaErrors(cudaMalloc(&d_X, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaMalloc(&d_Y, N*M*sizeof(dataType)));
+  gettimeofday(&endMemAllocTimer, NULL);
+
+  memset(Y,0,N*M*sizeof(dataType));
+  for(int i = 0; i < N; ++i)
+      for(int j = 0; j < M; ++j)
+          X[i*M + j] = rand1 * (i+1);
+
+  checkCudaErrors(cudaMemcpy(d_X, X, N*M*sizeof(dataType), cudaMemcpyHostToDevice));
+
+  gettimeofday(&startKernelTimer, NULL);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  checkCudaErrors(cudaDeviceSynchronize());
+  gettimeofday(&endKernelTimer, NULL);
+
+  checkCudaErrors(cudaMemcpy(Y, d_Y, N*M*sizeof(dataType), cudaMemcpyDeviceToHost));
+  checkCudaErrors(cudaFreeHost(X));
+  checkCudaErrors(cudaFreeHost(Y));
+  checkCudaErrors(cudaFree(d_X));
+  checkCudaErrors(cudaFree(d_Y));
+
+  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+}
+
+void pageable_host_device_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+{
+  int device;
+  checkCudaErrors(cudaSetDevice(0));
+  checkCudaErrors(cudaGetDevice(&device));
+//  cout << "pageable-host-device-memory : Device number = " << device << endl;
+  timeval startMemAllocTimer, endMemAllocTimer,
+          startKernelTimer, endKernelTimer;
+
+  dataType *Y, *X;
+  dataType *d_Y, *d_X;
+  dim3 grid(N,1,1);
+  dim3 threads(M,1,1);
+
+  dataType a = 0.5;
+  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+
+  gettimeofday(&startMemAllocTimer, NULL);
+  X = (dataType*) malloc(N*M*sizeof(dataType));
+  Y = (dataType*) malloc(N*M*sizeof(dataType));
+
+  //Allocate memory on device
+  checkCudaErrors(cudaMalloc(&d_X, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaMalloc(&d_Y, N*M*sizeof(dataType)));
+  gettimeofday(&endMemAllocTimer, NULL);
+
+  memset(Y,0,N*M*sizeof(dataType));
+  for(int i = 0; i < N; ++i)
+      for(int j = 0; j < M; ++j)
+          X[i*M + j] = rand1 * (i+1);
+
+  checkCudaErrors(cudaMemcpy(d_X, X, N*M*sizeof(dataType), cudaMemcpyHostToDevice));
+
+  gettimeofday(&startKernelTimer, NULL);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  checkCudaErrors(cudaDeviceSynchronize());
+  gettimeofday(&endKernelTimer, NULL);
+
+  checkCudaErrors(cudaMemcpy(Y, d_Y, N*M*sizeof(dataType), cudaMemcpyDeviceToHost));
+
+  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+
+  free(X);
+  free(Y);
+  checkCudaErrors(cudaFree(d_X));
+  checkCudaErrors(cudaFree(d_Y));
+}
+
 int main(int argc, char **argv)
 {
 #if USE_TIMEMORY
@@ -87,30 +258,13 @@ int main(int argc, char **argv)
       }
   }
 
-  double elapsed_total, elapsed_memAlloc, elapsed_kernel;
-  timeval startTotalTimer, endTotalTimer,
-          startMemAllocTimer, endMemAllocTimer,
-          startKernelTimer, endKernelTimer;
+  timeval startTotalTimer, endTotalTimer;
   gettimeofday(&startTotalTimer, NULL);
 
   cout << "M = " << M << "\t N = " << N << endl;
   cout << "Total Memory Footprint = " << (size_t)(M*N*sizeof(dataType)/(1024*1024*1024)) << " GBs" << endl;
   cout << "threadblocks = " << N << "  and data accessed by each threadblock = " << M*sizeof(double) << " bytes" << endl;
 
-  int device;
-//    checkCudaErrors(cudaSetDevice(1));
-  checkCudaErrors(cudaGetDevice(&device));
-  cout << "Device number = " << device << endl;
-
-  dataType *Y, *X;
-  dataType *d_Y, *d_X;
-  bool copyFlag = false;
-
-  dim3 grid(N,1,1);
-  dim3 threads(M,1,1);
-
-  dataType a = 0.5;
-  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
 
 #if USE_TIMEMORY
   using namespace tim::component;
@@ -123,67 +277,45 @@ int main(int argc, char **argv)
   data_allocation.start();
 #endif
 
+
   //Allocating data
-  gettimeofday(&startMemAllocTimer, NULL);
 #if defined(USE_HOST_PAGEABLE_AND_DEVICE_MEMORY)
   printf("###############Using HOST_PAGEABLE_AND_DEVICE_MEMORY###############\n");
-  X = (dataType*) malloc(N*M*sizeof(dataType));
-  Y = (dataType*) malloc(N*M*sizeof(dataType));
-
-  //Allocate memory on device
-  checkCudaErrors(cudaMalloc(&d_X, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaMalloc(&d_Y, N*M*sizeof(dataType)));
-
-  copyFlag = true; //Switch on the copy flag
+  pageable_host_device_memory(elapsed_memAlloc,elapsed_kernel,N,M);
 
 #elif defined(USE_PINNED_MEMORY)
   printf("###############Using PINNED_MEMORY###############\n");
-  checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaMallocHost(&Y, N*M*sizeof(dataType)));
-
-    //Allocate memory on device
-  checkCudaErrors(cudaMalloc(&d_X, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaMalloc(&d_Y, N*M*sizeof(dataType)));
-
-  copyFlag = true; //Switch on the copy flag
+  pinned_memory(elapsed_memAlloc,elapsed_kernel,N,M);
 
 #elif defined(USE_MANAGED_MEMORY)
   printf("###############Using MANAGED_MEMORY###############\n");
-  checkCudaErrors(cudaMallocManaged(&d_X, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaMallocManaged(&d_Y, N*M*sizeof(dataType)));
-  X = d_X; Y = d_Y;
+  managed_memory(elapsed_memAlloc,elapsed_kernel,N,M);
 
 #elif defined(USE_ZERO_COPY)
   printf("###############Using ZERO_COPY###############\n");
-  checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaMallocHost(&Y, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaHostGetDevicePointer(&d_X,X,0));
-  checkCudaErrors(cudaHostGetDevicePointer(&d_Y,Y,0));
+  zero_copy(elapsed_memAlloc,elapsed_kernel,N,M);
+
+#elif defined(RUN_ALL)
+  printf("###############Running All kernels###############\n");
+  double pageable_elapsed_memAlloc, pageable_elapsed_kernel,
+         managed_elapsed_memAlloc, managed_elapsed_kernel,
+         pinned_elapsed_memAlloc, pinned_elapsed_kernel,
+         zero_elapsed_memAlloc, zero_elapsed_kernel;
+
+  //Run all the kernels
+  pageable_host_device_memory(pageable_elapsed_memAlloc,pageable_elapsed_kernel,N,M);
+  managed_memory(managed_elapsed_memAlloc,managed_elapsed_kernel,N,M);
+  pinned_memory(pinned_elapsed_memAlloc,pinned_elapsed_kernel,N,M);
+  zero_copy(zero_elapsed_memAlloc,zero_elapsed_kernel,N,M);
+
+  cudaDeviceSynchronize();
 #endif
-  gettimeofday(&endMemAllocTimer, NULL);
-
-  memset(Y,0,N*M*sizeof(dataType));
-  for(int i = 0; i < N; ++i)
-      for(int j = 0; j < M; ++j)
-          X[i*M + j] = rand1 * (i+1);
-
-  if(copyFlag == true)
-      checkCudaErrors(cudaMemcpy(d_X, X, N*M*sizeof(dataType), cudaMemcpyHostToDevice));
 
 #if VERIFY_GPU_CORRECTNESS
   dataType *yOrig;
   yOrig = (dataType*) malloc(check_num_values*M*sizeof(dataType));
   PreComputeFewValues(N,M,a,yOrig,X);
 #endif
-
-  //Actual CUDA kernel
-  gettimeofday(&startKernelTimer, NULL);
-  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
-
-  checkCudaErrors(cudaDeviceSynchronize());
-  if(copyFlag)
-      checkCudaErrors(cudaMemcpy(Y, d_Y, N*M*sizeof(dataType), cudaMemcpyDeviceToHost));
-  gettimeofday(&endKernelTimer, NULL);
 
 #if USE_TIMEMORY
   data_allocation.stop();
@@ -194,36 +326,33 @@ int main(int argc, char **argv)
   checkGPUCorrectness(N,M,Y,yOrig);
 #endif
 
-#if defined (USE_HOST_PAGEABLE_AND_DEVICE_MEMORY)
-    free(X);
-    free(Y);
-    checkCudaErrors(cudaFree(d_X));
-    checkCudaErrors(cudaFree(d_Y));
-#elif defined(USE_PINNED_MEMORY)
-    checkCudaErrors(cudaFreeHost(X));
-    checkCudaErrors(cudaFreeHost(Y));
-    checkCudaErrors(cudaFree(d_X));
-    checkCudaErrors(cudaFree(d_Y));
-#elif defined(USE_MANAGED_MEMORY)
-    checkCudaErrors(cudaFree(d_X));
-    checkCudaErrors(cudaFree(d_Y));
-#elif defined(USE_ZERO_COPY)
-    checkCudaErrors(cudaFreeHost(X));
-    checkCudaErrors(cudaFreeHost(Y));
-#endif
-
 #if USE_TIMEMORY
     measure.stop();
 #endif
   gettimeofday(&endTotalTimer, NULL);
 
   //calculate elapsed time
-  elapsed_total = elapsedTime(startTotalTimer, endTotalTimer);
-  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
-  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  double elapsed_total = elapsedTime(startTotalTimer, endTotalTimer);
 
+#if RUN_ALL
+  fprintf(stderr, "---------------------------------------------------------------\n");
+  fprintf(stderr, "Device \t Memory-Type \t MemAlloc-time[sec] \t Kernel-time[sec] \n");
+  fprintf(stderr, "---------------------------------------------------------------\n");
+  fprintf(stderr, "0 \t pageable \t %f \t\t %f \n", pageable_elapsed_memAlloc, pageable_elapsed_kernel);
+  fprintf(stderr, "---------------------------------------------------------------\n");
+  fprintf(stderr, "1 \t host-pinned \t %f \t\t %f \n", pinned_elapsed_memAlloc, pinned_elapsed_kernel);
+  fprintf(stderr, "---------------------------------------------------------------\n");
+  fprintf(stderr, "2 \t managed \t %f \t\t %f \n", managed_elapsed_memAlloc, managed_elapsed_kernel);
+  fprintf(stderr, "---------------------------------------------------------------\n");
+  fprintf(stderr, "3 \t zero-copy \t %f \t\t %f \n", zero_elapsed_memAlloc, zero_elapsed_kernel);
+  fprintf(stderr, "---------------------------------------------------------------\n");
+
+  cout << "************ Total-time = " << elapsed_total << " [sec] ************\n" << endl;
+
+#else
   cout << "************ MemAlloc-time = " << elapsed_memAlloc << " [sec] ************\n" << endl;
   cout << "************ Kernel-time = " << elapsed_kernel << " [sec] ************\n" << endl;
   cout << "************ Total-time = " << elapsed_total << " [sec] ************\n" << endl;
+#endif
     return 0;
 }
