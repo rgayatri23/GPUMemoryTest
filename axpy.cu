@@ -19,6 +19,7 @@
 using namespace std;
 
 #define check_num_values 10
+#define NUM_LOOPS 10
 
 //Handle 2-dim pointing
 #define Y(i,j) Y[i*M + j]
@@ -33,12 +34,18 @@ inline double elapsedTime(timeval start_time, timeval end_time)
 }
 
 
-void PreComputeFewValues(int N, int M, dataType a, dataType *Y, dataType *X)
+void PreComputeFewValues(int N, int M, dataType a, dataType rand1, dataType *Y, dataType *X)
 {
   if(N >= check_num_values)
+  {
     for(int i = 0; i < check_num_values; ++i)
-        for(int j = 0; j < M; ++j)
-            Y(i,j) += a * X(i,j);
+      for(int j = 0; j < M; ++j)
+          X[i*M + j] = rand1 * (i+1);
+
+    for(int i = 0; i < check_num_values; ++i)
+      for(int j = 0; j < M; ++j)
+        Y(i,j) += a * X(i,j);
+  }
 }
 
 void checkGPUCorrectness(int N, int M, dataType *Y, dataType *yOrig)
@@ -59,12 +66,13 @@ void checkGPUCorrectness(int N, int M, dataType *Y, dataType *yOrig)
 
 __global__ void axpyKernel(int N, int M, dataType a, dataType *Y, dataType *X)
 {
+//  for(int iter = 0; iter < NUM_LOOPS; ++iter)
     for(int i = blockIdx.x; i < N; i+=gridDim.x)
         for(int j = threadIdx.x; j < M; j+=blockDim.x)
             Y(i,j) += a * X(i,j);
 }
 
-void zero_copy(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+void zero_copy(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
   int device;
   checkCudaErrors(cudaSetDevice(3));
@@ -76,10 +84,7 @@ void zero_copy(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
   dataType *Y, *X;
   dataType *d_Y, *d_X;
   dim3 grid(N,1,1);
-  dim3 threads(M,1,1);
-
-  dataType a = 0.5;
-  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+  dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
   checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
@@ -98,6 +103,10 @@ void zero_copy(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
   checkCudaErrors(cudaDeviceSynchronize());
   gettimeofday(&endKernelTimer, NULL);
 
+#if VERIFY_GPU_CORRECTNESS
+  checkGPUCorrectness(N,M,Y,yOrig);
+#endif
+
   checkCudaErrors(cudaFreeHost(X));
   checkCudaErrors(cudaFreeHost(Y));
 
@@ -106,7 +115,7 @@ void zero_copy(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
 }
 
 
-void managed_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType *yOrig)
 {
   int device;
   checkCudaErrors(cudaSetDevice(2));
@@ -117,10 +126,7 @@ void managed_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int
 
   dataType *d_Y, *d_X;
   dim3 grid(N,1,1);
-  dim3 threads(M,1,1);
-
-  dataType a = 0.5;
-  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+  dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
   checkCudaErrors(cudaMallocManaged(&d_X, N*M*sizeof(dataType)));
@@ -130,16 +136,20 @@ void managed_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
-  gettimeofday(&endKernelTimer, NULL);
+
+#if VERIFY_GPU_CORRECTNESS
+  checkGPUCorrectness(N,M,d_Y,yOrig);
+#endif
 
   checkCudaErrors(cudaFree(d_X));
   checkCudaErrors(cudaFree(d_Y));
+  gettimeofday(&endKernelTimer, NULL);
 
   elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
   elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
 }
 
-void pinned_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
   int device;
   checkCudaErrors(cudaSetDevice(1));
@@ -151,10 +161,7 @@ void pinned_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int 
   dataType *Y, *X;
   dataType *d_Y, *d_X;
   dim3 grid(N,1,1);
-  dim3 threads(M,1,1);
-
-  dataType a = 0.5;
-  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+  dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
   checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
@@ -174,9 +181,14 @@ void pinned_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int 
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
-  gettimeofday(&endKernelTimer, NULL);
 
   checkCudaErrors(cudaMemcpy(Y, d_Y, N*M*sizeof(dataType), cudaMemcpyDeviceToHost));
+  gettimeofday(&endKernelTimer, NULL);
+
+#if VERIFY_GPU_CORRECTNESS
+  checkGPUCorrectness(N,M,Y,yOrig);
+#endif
+
   checkCudaErrors(cudaFreeHost(X));
   checkCudaErrors(cudaFreeHost(Y));
   checkCudaErrors(cudaFree(d_X));
@@ -186,7 +198,7 @@ void pinned_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int 
   elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
 }
 
-void pageable_host_device_memory(double &elapsed_memAlloc, double &elapsed_kernel, int N, int M)
+void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
   int device;
   checkCudaErrors(cudaSetDevice(0));
@@ -198,10 +210,7 @@ void pageable_host_device_memory(double &elapsed_memAlloc, double &elapsed_kerne
   dataType *Y, *X;
   dataType *d_Y, *d_X;
   dim3 grid(N,1,1);
-  dim3 threads(M,1,1);
-
-  dataType a = 0.5;
-  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+  dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
   X = (dataType*) malloc(N*M*sizeof(dataType));
@@ -222,12 +231,16 @@ void pageable_host_device_memory(double &elapsed_memAlloc, double &elapsed_kerne
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
-  gettimeofday(&endKernelTimer, NULL);
 
   checkCudaErrors(cudaMemcpy(Y, d_Y, N*M*sizeof(dataType), cudaMemcpyDeviceToHost));
+  gettimeofday(&endKernelTimer, NULL);
 
   elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
   elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+
+#if VERIFY_GPU_CORRECTNESS
+  checkGPUCorrectness(N,M,Y,yOrig);
+#endif
 
   free(X);
   free(Y);
@@ -277,23 +290,37 @@ int main(int argc, char **argv)
   data_allocation.start();
 #endif
 
+  dataType a = 0.5;
+  dataType rand1 = (dataType)rand() / (dataType)RAND_MAX;
+
+  dataType *yOrig, *X;
+#if VERIFY_GPU_CORRECTNESS
+  yOrig = (dataType*) malloc(check_num_values*M*sizeof(dataType));
+  X = (dataType*) malloc(check_num_values*M*sizeof(dataType));
+  PreComputeFewValues(N,M,a,rand1,yOrig,X);
+#endif
+
 
   //Allocating data
 #if defined(USE_HOST_PAGEABLE_AND_DEVICE_MEMORY)
+  double elapsed_memAlloc, elapsed_kernel;
   printf("###############Using HOST_PAGEABLE_AND_DEVICE_MEMORY###############\n");
-  pageable_host_device_memory(elapsed_memAlloc,elapsed_kernel,N,M);
+  pageable_host_device_memory(a,rand1,elapsed_memAlloc,elapsed_kernel,N,M,yOrig);
 
 #elif defined(USE_PINNED_MEMORY)
+  double elapsed_memAlloc, elapsed_kernel;
   printf("###############Using PINNED_MEMORY###############\n");
-  pinned_memory(elapsed_memAlloc,elapsed_kernel,N,M);
+  pinned_memory(a,rand1,elapsed_memAlloc,elapsed_kernel,N,M,yOrig);
 
 #elif defined(USE_MANAGED_MEMORY)
+  double elapsed_memAlloc, elapsed_kernel;
   printf("###############Using MANAGED_MEMORY###############\n");
-  managed_memory(elapsed_memAlloc,elapsed_kernel,N,M);
+  managed_memory(a,rand1,elapsed_memAlloc,elapsed_kernel,N,M,yOrig);
 
 #elif defined(USE_ZERO_COPY)
+  double elapsed_memAlloc, elapsed_kernel;
   printf("###############Using ZERO_COPY###############\n");
-  zero_copy(elapsed_memAlloc,elapsed_kernel,N,M);
+  zero_copy(a,rand1,elapsed_memAlloc,elapsed_kernel,N,M,yOrig);
 
 #elif defined(RUN_ALL)
   printf("###############Running All kernels###############\n");
@@ -303,27 +330,16 @@ int main(int argc, char **argv)
          zero_elapsed_memAlloc, zero_elapsed_kernel;
 
   //Run all the kernels
-  pageable_host_device_memory(pageable_elapsed_memAlloc,pageable_elapsed_kernel,N,M);
-  managed_memory(managed_elapsed_memAlloc,managed_elapsed_kernel,N,M);
-  pinned_memory(pinned_elapsed_memAlloc,pinned_elapsed_kernel,N,M);
-  zero_copy(zero_elapsed_memAlloc,zero_elapsed_kernel,N,M);
+  pageable_host_device_memory(a,rand1,pageable_elapsed_memAlloc,pageable_elapsed_kernel,N,M,yOrig);
+  managed_memory(a,rand1,managed_elapsed_memAlloc,managed_elapsed_kernel,N,M,yOrig);
+  pinned_memory(a,rand1,pinned_elapsed_memAlloc,pinned_elapsed_kernel,N,M,yOrig);
+  zero_copy(a,rand1,zero_elapsed_memAlloc,zero_elapsed_kernel,N,M,yOrig);
 
   cudaDeviceSynchronize();
 #endif
 
-#if VERIFY_GPU_CORRECTNESS
-  dataType *yOrig;
-  yOrig = (dataType*) malloc(check_num_values*M*sizeof(dataType));
-  PreComputeFewValues(N,M,a,yOrig,X);
-#endif
-
 #if USE_TIMEMORY
   data_allocation.stop();
-#endif
-
-
-#if VERIFY_GPU_CORRECTNESS
-  checkGPUCorrectness(N,M,Y,yOrig);
 #endif
 
 #if USE_TIMEMORY
