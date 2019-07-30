@@ -75,8 +75,8 @@ __global__ void axpyKernel(int N, int M, dataType a, dataType *Y, dataType *X)
 void zero_copy(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
   int device;
-  checkCudaErrors(cudaSetDevice(3));
-  checkCudaErrors(cudaGetDevice(&device));
+//  checkCudaErrors(cudaSetDevice(3));
+//  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "zero-copy : Device number = " << device << endl;
   timeval startMemAllocTimer, endMemAllocTimer,
           startKernelTimer, endKernelTimer;
@@ -118,8 +118,8 @@ void zero_copy(dataType a, dataType rand1, double &elapsed_memAlloc, double &ela
 void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType *yOrig)
 {
   int device;
-  checkCudaErrors(cudaSetDevice(2));
-  checkCudaErrors(cudaGetDevice(&device));
+//  checkCudaErrors(cudaSetDevice(2));
+//  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "managed-memory : Device number = " << device << endl;
   timeval startMemAllocTimer, endMemAllocTimer,
           startKernelTimer, endKernelTimer;
@@ -152,8 +152,8 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
 void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
   int device;
-  checkCudaErrors(cudaSetDevice(1));
-  checkCudaErrors(cudaGetDevice(&device));
+//  checkCudaErrors(cudaSetDevice(1));
+//  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "pinned-memory : Device number = " << device << endl;
   timeval startMemAllocTimer, endMemAllocTimer,
           startKernelTimer, endKernelTimer;
@@ -201,8 +201,8 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double 
 void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
   int device;
-  checkCudaErrors(cudaSetDevice(0));
-  checkCudaErrors(cudaGetDevice(&device));
+//  checkCudaErrors(cudaSetDevice(0));
+//  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "pageable-host-device-memory : Device number = " << device << endl;
   timeval startMemAllocTimer, endMemAllocTimer,
           startKernelTimer, endKernelTimer;
