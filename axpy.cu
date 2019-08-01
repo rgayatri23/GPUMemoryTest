@@ -104,6 +104,7 @@ void zero_copy(dataType a, dataType rand1, double &elapsed_memAlloc, double &ela
   gettimeofday(&endKernelTimer, NULL);
 
 #if VERIFY_GPU_CORRECTNESS
+  cout << "ZERO-COPY : \t" ;
   checkGPUCorrectness(N,M,Y,yOrig);
 #endif
 
@@ -142,6 +143,7 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   checkCudaErrors(cudaDeviceSynchronize());
 
 #if VERIFY_GPU_CORRECTNESS
+  cout << "MANAGED-MEMORY : \t" ;
   checkGPUCorrectness(N,M,d_Y,yOrig);
 #endif
 
@@ -190,6 +192,7 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double 
   gettimeofday(&endKernelTimer, NULL);
 
 #if VERIFY_GPU_CORRECTNESS
+  cout << "PINNED-MEMORY : \t" ;
   checkGPUCorrectness(N,M,Y,yOrig);
 #endif
 
@@ -232,6 +235,8 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
 
   checkCudaErrors(cudaMemcpy(d_X, X, N*M*sizeof(dataType), cudaMemcpyHostToDevice));
 
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
@@ -243,6 +248,7 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
   elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
 
 #if VERIFY_GPU_CORRECTNESS
+  cout << "PAGEABLE-MEMORY : \t" ;
   checkGPUCorrectness(N,M,Y,yOrig);
 #endif
 
