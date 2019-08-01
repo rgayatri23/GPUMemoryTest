@@ -133,6 +133,10 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   checkCudaErrors(cudaMallocManaged(&d_Y, N*M*sizeof(dataType)));
   gettimeofday(&endMemAllocTimer, NULL);
 
+  for(int i = 0; i < N; ++i)
+      for(int j = 0; j < M; ++j)
+          d_X[i*M + j] = rand1 * (i+1);
+
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());

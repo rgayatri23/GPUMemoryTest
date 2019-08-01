@@ -8,7 +8,12 @@ SRC = *.cu
 
 COMP = nvcc
 
+ifeq ($(LMOD_SYSTEM_NAME),summit)
+CUDA_PATH?=$(OLCF_CUDA_ROOT)
+else
 CUDA_PATH?=$(CUDA_ROOT)
+endif
+
 
 accel=no
 UVM=no
@@ -104,7 +109,7 @@ ifeq ($(CXX),nvcc)
 #	CXXFLAGS = -I$(CUDA_PATH)/include
 	CXXFLAGS = -I$(CUDA_PATH)/samples/common/inc/
 	ifeq ($(TIMEMORY_PROFILE),y)
-		CXXFLAGS += -I /project/projectdirs/m1759/timemory/corigpu/include
+		CXXFLAGS += -I/project/projectdirs/m1759/timemory/corigpu/include
 		CXXFLAGS += -DTIMEMORY_USE_CUDA
 	endif
 	CXXFLAGS += $(DEFINE)
