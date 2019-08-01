@@ -74,7 +74,7 @@ __global__ void axpyKernel(int N, int M, dataType a, dataType *Y, dataType *X)
 
 void zero_copy(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
-  int device;
+//  int device;
 //  checkCudaErrors(cudaSetDevice(3));
 //  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "zero-copy : Device number = " << device << endl;
@@ -98,6 +98,10 @@ void zero_copy(dataType a, dataType rand1, double &elapsed_memAlloc, double &ela
       for(int j = 0; j < M; ++j)
           X[i*M + j] = rand1 * (i+1);
 
+  //Run the kernel twice before any of the timings begin to get rid of the initial-hickups
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
@@ -118,7 +122,7 @@ void zero_copy(dataType a, dataType rand1, double &elapsed_memAlloc, double &ela
 
 void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType *yOrig)
 {
-  int device;
+//  int device;
 //  checkCudaErrors(cudaSetDevice(2));
 //  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "managed-memory : Device number = " << device << endl;
@@ -138,6 +142,8 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
       for(int j = 0; j < M; ++j)
           d_X[i*M + j] = rand1 * (i+1);
 
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
@@ -157,7 +163,7 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
 
 void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
-  int device;
+//  int device;
 //  checkCudaErrors(cudaSetDevice(1));
 //  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "pinned-memory : Device number = " << device << endl;
@@ -184,6 +190,8 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double 
 
   checkCudaErrors(cudaMemcpy(d_X, X, N*M*sizeof(dataType), cudaMemcpyHostToDevice));
 
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
+  axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   gettimeofday(&startKernelTimer, NULL);
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
@@ -207,7 +215,7 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double 
 
 void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
-  int device;
+//  int device;
 //  checkCudaErrors(cudaSetDevice(0));
 //  checkCudaErrors(cudaGetDevice(&device));
 //  cout << "pageable-host-device-memory : Device number = " << device << endl;
@@ -285,9 +293,8 @@ int main(int argc, char **argv)
   gettimeofday(&startTotalTimer, NULL);
 
   cout << "M = " << M << "\t N = " << N << endl;
-  cout << "Total Memory Footprint = " << (size_t)(M*N*sizeof(dataType)/(1024*1024*1024)) << " GBs" << endl;
+  cout << "Total Memory Footprint = " << (size_t)(M*N*sizeof(dataType)/(1024.0*1024.0*1024.0)) << " GBs" << endl;
   cout << "threadblocks = " << N << "  and data accessed by each threadblock = " << M*sizeof(double) << " bytes" << endl;
-
 
 #if USE_TIMEMORY
   using namespace tim::component;
@@ -361,17 +368,17 @@ int main(int argc, char **argv)
   double elapsed_total = elapsedTime(startTotalTimer, endTotalTimer);
 
 #if RUN_ALL
-  fprintf(stderr, "---------------------------------------------------------------\n");
-  fprintf(stderr, "Device \t Memory-Type \t MemAlloc-time[sec] \t Kernel-time[sec] \n");
-  fprintf(stderr, "---------------------------------------------------------------\n");
-  fprintf(stderr, "0 \t pageable \t %f \t\t %f \n", pageable_elapsed_memAlloc, pageable_elapsed_kernel);
-  fprintf(stderr, "---------------------------------------------------------------\n");
-  fprintf(stderr, "1 \t host-pinned \t %f \t\t %f \n", pinned_elapsed_memAlloc, pinned_elapsed_kernel);
-  fprintf(stderr, "---------------------------------------------------------------\n");
-  fprintf(stderr, "2 \t managed \t %f \t\t %f \n", managed_elapsed_memAlloc, managed_elapsed_kernel);
-  fprintf(stderr, "---------------------------------------------------------------\n");
-  fprintf(stderr, "3 \t zero-copy \t %f \t\t %f \n", zero_elapsed_memAlloc, zero_elapsed_kernel);
-  fprintf(stderr, "---------------------------------------------------------------\n");
+  fprintf(stderr, "------------------------------------------------------------------------------------------------------\n");
+  fprintf(stderr, "Device \t Memory-Type \t MemAlloc-time[sec] \t Kernel-time[sec] \t Kernel+MemAlloc[sec] \n");
+  fprintf(stderr, "------------------------------------------------------------------------------------------------------\n");
+  fprintf(stderr, "0 \t pageable \t %f \t\t %f \t\t %f \n", pageable_elapsed_memAlloc, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel);
+  fprintf(stderr, "------------------------------------------------------------------------------------------------------\n");
+  fprintf(stderr, "1 \t host-pinned \t %f \t\t %f \t\t %f  \n", pinned_elapsed_memAlloc, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel);
+  fprintf(stderr, "------------------------------------------------------------------------------------------------------\n");
+  fprintf(stderr, "2 \t managed \t %f \t\t %f \t\t %f  \n", managed_elapsed_memAlloc, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel);
+  fprintf(stderr, "------------------------------------------------------------------------------------------------------\n");
+  fprintf(stderr, "3 \t zero-copy \t %f \t\t %f \t\t %f  \n", zero_elapsed_memAlloc, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel);
+  fprintf(stderr, "------------------------------------------------------------------------------------------------------\n");
 
   cout << "************ Total-time = " << elapsed_total << " [sec] ************\n" << endl;
 
