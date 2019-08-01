@@ -87,8 +87,8 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
   dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
-  checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaMallocHost(&Y, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaHostAlloc(&X, N*M*sizeof(dataType), cudaHostAllocDefault));
+  checkCudaErrors(cudaHostAlloc(&Y, N*M*sizeof(dataType), cudaHostAllocDefault));
   checkCudaErrors(cudaHostGetDevicePointer(&d_X,X,0));
   checkCudaErrors(cudaHostGetDevicePointer(&d_Y,Y,0));
   gettimeofday(&endMemAllocTimer, NULL);
@@ -121,8 +121,10 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
   checkGPUCorrectness(N,M,Y,yOrig);
 #endif
 
+#if !defined(ON_SUMMIT)
   checkCudaErrors(cudaFreeHost(X));
   checkCudaErrors(cudaFreeHost(Y));
+#endif
 
   elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
   elapsed_init = elapsedTime(startInitTimer, endInitTimer);
@@ -198,8 +200,8 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
-  checkCudaErrors(cudaMallocHost(&X, N*M*sizeof(dataType)));
-  checkCudaErrors(cudaMallocHost(&Y, N*M*sizeof(dataType)));
+  checkCudaErrors(cudaHostAlloc(&X, N*M*sizeof(dataType), cudaHostAllocDefault));
+  checkCudaErrors(cudaHostAlloc(&Y, N*M*sizeof(dataType), cudaHostAllocDefault));
     //Allocate memory on device
   checkCudaErrors(cudaMalloc(&d_X, N*M*sizeof(dataType)));
   checkCudaErrors(cudaMalloc(&d_Y, N*M*sizeof(dataType)));
@@ -237,8 +239,10 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   checkGPUCorrectness(N,M,Y,yOrig);
 #endif
 
+#if !defined(ON_SUMMIT)
   checkCudaErrors(cudaFreeHost(X));
   checkCudaErrors(cudaFreeHost(Y));
+#endif
   checkCudaErrors(cudaFree(d_X));
   checkCudaErrors(cudaFree(d_Y));
 

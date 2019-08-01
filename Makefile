@@ -11,6 +11,7 @@ CXX = nvcc
 
 ifeq ($(LMOD_SYSTEM_NAME),summit)
 CUDA_PATH?=$(OLCF_CUDA_ROOT)
+DEFINE += -DON_SUMMIT
 else
 CUDA_PATH?=$(CUDA_ROOT)
 endif
