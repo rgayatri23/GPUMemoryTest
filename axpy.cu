@@ -344,7 +344,7 @@ int main(int argc, char **argv)
 
   cout << "M = " << M << "\t N = " << N << endl;
   cout << "Total Memory Footprint = " << (double)(M*N*sizeof(dataType)/(1024.0*1024.0*1024.0)) << " GBs" << endl;
-  cout << "threadblocks = " << N << "  and data accessed by each threadblock = " << M*sizeof(double) << " bytes" << endl;
+  cout << "threadblocks = " << N << "  and data accessed by each threadblock = " << (double)(M*sizeof(double)/1024.0) << " Kb" << endl;
 
 #if USE_TIMEMORY
   using namespace tim::component;
@@ -397,10 +397,10 @@ int main(int argc, char **argv)
          zero_elapsed_memAlloc, zero_elapsed_kernel, zero_init;
 
   //Run all the kernels
-  pageable_host_device_memory(a,rand1,pageable_elapsed_memAlloc,pageable_init,pageable_elapsed_kernel,N,M,yOrig);
-  pinned_memory(a,rand1,pinned_elapsed_memAlloc,pinned_init,pinned_elapsed_kernel,N,M,yOrig);
-  managed_memory(a,rand1,managed_elapsed_memAlloc,managed_init,managed_elapsed_kernel,N,M,yOrig);
-  zero_copy(a,rand1,zero_elapsed_memAlloc,zero_init,zero_elapsed_kernel,N,M,yOrig);
+  pageable_host_device_memory(a, rand1, pageable_elapsed_memAlloc, pageable_init, pageable_elapsed_kernel, N, M, yOrig);
+  pinned_memory(a, rand1, pinned_elapsed_memAlloc, pinned_init, pinned_elapsed_kernel, N, M, yOrig);
+  managed_memory(a, rand1, managed_elapsed_memAlloc, managed_init, managed_elapsed_kernel, N, M, yOrig);
+  zero_copy(a, rand1, zero_elapsed_memAlloc, zero_init, zero_elapsed_kernel, N, M, yOrig);
 
   cudaDeviceSynchronize();
 #endif
