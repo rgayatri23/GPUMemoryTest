@@ -53,6 +53,7 @@ ifeq ($(CXX),nvcc)
 	CXXFLAGS += $(DEFINE)
 	CXXFLAGS += -O3 -std=c++11 -Wno-deprecated-gpu-targets
 	CXXFLAGS += -arch=sm_70
+	CXXFLAGS += -lnvToolsExt
 endif
 
 #LDFLAGS = -L/global/project/projectdirs/m1759/timemory/corigpu/lib64 -ltimemory -lctimemory

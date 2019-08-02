@@ -11,6 +11,7 @@
 #include <helper_cuda.h>
 #include <helper_timer.h>
 #include <sys/time.h>
+#include <nvToolsExt.h>
 #if USE_TIMEMORY
 #include <timemory/timemory.hpp>
 #endif
@@ -40,7 +41,7 @@ void PreComputeFewValues(int N, int M, dataType a, dataType rand1, dataType *Y, 
   {
     for(int i = 0; i < check_num_values; ++i)
       for(int j = 0; j < M; ++j)
-          X[i*M + j] = rand1 * (i+1);
+          X(i,j) = rand1 * (i+1);
 
     for(int i = 0; i < check_num_values; ++i)
       for(int j = 0; j < M; ++j)
@@ -74,6 +75,7 @@ __global__ void axpyKernel(int N, int M, dataType a, dataType *Y, dataType *X)
 
 void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& elapsed_init, double& elapsed_kernel, int N, int M, dataType* yOrig)
 {
+  nvtxRangePushA("Zero_copy");
   int device;
   checkCudaErrors(cudaSetDevice(3));
   checkCudaErrors(cudaGetDevice(&device));
@@ -129,11 +131,13 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
   elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
   elapsed_init = elapsedTime(startInitTimer, endInitTimer);
   elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  nvtxRangePop();
 }
 
 
 void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_init, double &elapsed_kernel, int N, int M, dataType *yOrig)
 {
+  nvtxRangePushA("managed_memory");
   int device;
   checkCudaErrors(cudaSetDevice(2));
   checkCudaErrors(cudaGetDevice(&device));
@@ -183,10 +187,12 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
   elapsed_init = elapsedTime(startInitTimer, endInitTimer);
   elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  nvtxRangePop();
 }
 
 void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_init, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
+  nvtxRangePushA("pinned_memory");
   int device;
   checkCudaErrors(cudaSetDevice(1));
   checkCudaErrors(cudaGetDevice(&device));
@@ -249,10 +255,12 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
   elapsed_init = elapsedTime(startInitTimer, endInitTimer);
   elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  nvtxRangePop();
 }
 
 void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_init, double &elapsed_kernel, int N, int M, dataType* yOrig)
 {
+  nvtxRangePushA("pageable_memory");
   int device;
   checkCudaErrors(cudaSetDevice(0));
   checkCudaErrors(cudaGetDevice(&device));
@@ -314,6 +322,7 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
   free(Y);
   checkCudaErrors(cudaFree(d_X));
   checkCudaErrors(cudaFree(d_Y));
+  nvtxRangePop();
 }
 
 int main(int argc, char **argv)
