@@ -445,7 +445,7 @@ int main(int argc, char **argv)
   fprintf(stderr, "----------------------------------------------------------------------------------------------------------------------\n");
   fprintf(stderr, "Device \t Memory-Type \t MemAlloc-time[sec] \t MemCPY-time[sec] \t Kernel-time[sec] \t Kernel+MemAlloc[sec] \t Init-Values\n");
   fprintf(stderr, "----------------------------------------------------------------------------------------------------------------------\n");
-  fprintf(stderr, "0 \t pageable \t %f \t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
+  fprintf(stderr, "0 \t pageable \t %f \t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
   fprintf(stderr, "----------------------------------------------------------------------------------------------------------------------\n");
   fprintf(stderr, "1 \t host-pinned \t %f \t\t %f \t\t %f \t\t %f \t\t %f \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
   fprintf(stderr, "----------------------------------------------------------------------------------------------------------------------\n");
