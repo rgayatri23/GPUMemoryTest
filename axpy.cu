@@ -20,7 +20,7 @@
 using namespace std;
 
 #define check_num_values 10
-#define NUM_LOOPS 10
+#define NUM_LOOPS 5
 bool print_csv = false;
 
 //Handle 2-dim pointing
@@ -379,9 +379,9 @@ int main(int argc, char **argv)
   timeval startTotalTimer, endTotalTimer;
   gettimeofday(&startTotalTimer, NULL);
 
-  cout << "M = " << M << "\t N = " << N << endl;
-  cout << "Total Memory Footprint = " << (double)(M*N*sizeof(dataType)/(1024.0*1024.0*1024.0)) << " GBs" << endl;
-  cout << "threadblocks = " << N << "  and data accessed by each threadblock = " << (double)(M*sizeof(double)/1024.0) << " Kb" << endl;
+  fprintf(stdout, "M = %d\t N = %d\n", M,N);
+  fprintf(stdout, "Total Memory Footprint = %f\n", (double)(M*N*sizeof(dataType)/(1024.0*1024.0*1024.0)));
+  fprintf(stdout, "threadblocks = %d\t and data accessed by each threadblock = %f Kb\n",N,(double)(M*sizeof(double)/1024.0));
 
 #if USE_TIMEMORY
   using namespace tim::component;
@@ -407,24 +407,24 @@ int main(int argc, char **argv)
 
   //Allocating data
 #if defined(USE_HOST_PAGEABLE_AND_DEVICE_MEMORY)
-  double elapsed_memAlloc, elapsed_kernel, elapsed_init;
+  double elapsed_memAlloc, elapsed_kernel, elapsed_init, elapsed_memcpy;
   printf("###############Using HOST_PAGEABLE_AND_DEVICE_MEMORY###############\n");
-  pageable_host_device_memory(a,rand1,elapsed_memAlloc,elapsed_init, elapsed_kernel,N,M,yOrig);
+  pageable_host_device_memory(a,rand1,elapsed_memAlloc, elapsed_memcpy, elapsed_init, elapsed_kernel,N,M,yOrig);
 
 #elif defined(USE_PINNED_MEMORY)
-  double elapsed_memAlloc, elapsed_kernel, elapsed_init;
+  double elapsed_memAlloc, elapsed_kernel, elapsed_init, elapsed_memcpy;
   printf("###############Using PINNED_MEMORY###############\n");
-  pinned_memory(a,rand1,elapsed_memAlloc,elapsed_init,elapsed_kernel,N,M,yOrig);
+  pinned_memory(a,rand1,elapsed_memAlloc, elapsed_memcpy, elapsed_init, elapsed_kernel,N,M,yOrig);
 
 #elif defined(USE_MANAGED_MEMORY)
-  double elapsed_memAlloc, elapsed_kernel, elapsed_init;
+  double elapsed_memAlloc, elapsed_kernel, elapsed_init, elapsed_memcpy;
   printf("###############Using MANAGED_MEMORY###############\n");
-  managed_memory(a,rand1,elapsed_memAlloc,elapsed_init,elapsed_kernel,N,M,yOrig);
+  managed_memory(a,rand1,elapsed_memAlloc, elapsed_memcpy, elapsed_init, elapsed_kernel,N,M,yOrig);
 
 #elif defined(USE_ZERO_COPY)
-  double elapsed_memAlloc, elapsed_kernel, elapsed_init;
+  double elapsed_memAlloc, elapsed_kernel, elapsed_init, elapsed_memcpy;
   printf("###############Using ZERO_COPY###############\n");
-  zero_copy(a,rand1,elapsed_memAlloc,elapsed_init,elapsed_kernel,N,M,yOrig);
+  zero_copy(a,rand1,elapsed_memAlloc, elapsed_memcpy, elapsed_init, elapsed_kernel,N,M,yOrig);
 
   //Run all the kernels
 #elif defined(RUN_ALL)
@@ -471,28 +471,28 @@ int main(int argc, char **argv)
 #if RUN_ALL
   if(print_csv)
   {
-    fprintf(stderr, "Device, \t Memory-Type, \t MemAlloc-time[sec], \t MemCPY-time[sec], \t Kernel-time[sec], \t Kernel+MemAlloc[sec], \t Init-Values[sec]\n");
-    fprintf(stderr, "0, \t pageable, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
-    fprintf(stderr, "1, \t host-pinned, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
-    fprintf(stderr, "2, \t managed, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", managed_elapsed_memAlloc, managed_memcpy, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel, managed_init);
-    fprintf(stderr, "3, \t zero-copy, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f \n", zero_elapsed_memAlloc, zero_memcpy, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel, zero_init);
+    fprintf(stdout, "Device, \t Memory-Type, \t MemAlloc-time[sec], \t MemCPY-time[sec], \t Kernel-time[sec], \t Kernel+MemAlloc[sec], \t Init-Values[sec],\n");
+    fprintf(stdout, "0, \t pageable, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f,\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
+    fprintf(stdout, "1, \t host-pinned, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
+    fprintf(stdout, "2, \t managed, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", managed_elapsed_memAlloc, managed_memcpy, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel, managed_init);
+    fprintf(stdout, "3, \t zero-copy, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", zero_elapsed_memAlloc, zero_memcpy, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel, zero_init);
   }
   else
   {
-    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stderr, "Device, \t Memory-Type, \t MemAlloc-time[sec], \t MemCPY-time[sec], \t Kernel-time[sec], \t Kernel+MemAlloc[sec], \t Init-Values[sec]\n");
-    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stderr, "0 \t pageable, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
-    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stderr, "1 \t host-pinned, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
-    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stderr, "2 \t managed, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", managed_elapsed_memAlloc, managed_memcpy, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel, managed_init);
-    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stderr, "3 \t zero-copy, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f \n", zero_elapsed_memAlloc, zero_memcpy, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel, zero_init);
-    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stdout, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stdout, "Device \t Memory-Type \t MemAlloc-time[sec] \t MemCPY-time[sec] \t Kernel-time[sec] \t Kernel+MemAlloc[sec] \t Init-Values[sec]\n");
+    fprintf(stdout, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stdout, "0 \t pageable \t %f \t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
+    fprintf(stdout, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stdout, "1 \t host-pinned \t %f \t\t %f \t\t %f \t\t %f \t\t %f \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
+    fprintf(stdout, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stdout, "2 \t managed \t %f \t\t %f \t\t %f \t\t %f \t\t %f \n", managed_elapsed_memAlloc, managed_memcpy, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel, managed_init);
+    fprintf(stdout, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stdout, "3 \t zero-copy \t %f \t\t %f \t\t %f \t\t %f,\t\t %f \n", zero_elapsed_memAlloc, zero_memcpy, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel, zero_init);
+    fprintf(stdout, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
   }
 
-  cout << "************ Total-time = " << elapsed_total << " [sec] ************\n" << endl;
+  fprintf(stdout, "Total time = %f [sec]\n", elapsed_total);
 
 #else
   cout << "************ MemAlloc-time = " << elapsed_memAlloc << " [sec] ************\n" << endl;
