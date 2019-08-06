@@ -493,6 +493,7 @@ int main(int argc, char **argv)
   }
 
   fprintf(stdout, "Total time = %f [sec]\n", elapsed_total);
+  fprintf(stdout, "##########################################################################################################################################################################\n");
 
 #else
   cout << "************ MemAlloc-time = " << elapsed_memAlloc << " [sec] ************\n" << endl;
