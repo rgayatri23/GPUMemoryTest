@@ -21,6 +21,7 @@ using namespace std;
 
 #define check_num_values 10
 #define NUM_LOOPS 10
+bool print_csv = false;
 
 //Handle 2-dim pointing
 #define Y(i,j) Y[i*M + j]
@@ -67,7 +68,6 @@ void checkGPUCorrectness(int N, int M, dataType *Y, dataType *yOrig)
 
 __global__ void axpyKernel(int N, int M, dataType a, dataType *Y, dataType *X)
 {
-//  for(int iter = 0; iter < NUM_LOOPS; ++iter)
     for(int i = blockIdx.x; i < N; i+=gridDim.x)
         for(int j = threadIdx.x; j < M; j+=blockDim.x)
             Y(i,j) += a * X(i,j);
@@ -129,9 +129,9 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
   checkCudaErrors(cudaFreeHost(Y));
 #endif
 
-  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
-  elapsed_init = elapsedTime(startInitTimer, endInitTimer);
-  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  elapsed_memAlloc += elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_init += elapsedTime(startInitTimer, endInitTimer);
+  elapsed_kernel += elapsedTime(startKernelTimer, endKernelTimer);
   nvtxRangePop();
 }
 
@@ -186,9 +186,9 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   checkCudaErrors(cudaFree(d_X));
   checkCudaErrors(cudaFree(d_Y));
 
-  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
-  elapsed_init = elapsedTime(startInitTimer, endInitTimer);
-  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  elapsed_memAlloc += elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_init += elapsedTime(startInitTimer, endInitTimer);
+  elapsed_kernel += elapsedTime(startKernelTimer, endKernelTimer);
   nvtxRangePop();
 }
 
@@ -229,6 +229,7 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   gettimeofday(&startMemCpyTimer, NULL);
   checkCudaErrors(cudaMemcpy(d_X, X, N*M*sizeof(dataType), cudaMemcpyHostToDevice));
   gettimeofday(&endMemCpyTimer, NULL);
+  elapsed_memcpy += elapsedTime(startMemCpyTimer, endMemCpyTimer);
 
 #if !defined(VERIFY_GPU_CORRECTNESS)
   //Run the kernel couple of times before the actual timings begins
@@ -247,7 +248,9 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   //End Kernel Timer
   gettimeofday(&endKernelTimer, NULL);
 
+  gettimeofday(&startMemCpyTimer, NULL);
   checkCudaErrors(cudaMemcpy(Y, d_Y, N*M*sizeof(dataType), cudaMemcpyDeviceToHost));
+  gettimeofday(&endMemCpyTimer, NULL);
 
 #if VERIFY_GPU_CORRECTNESS
   cout << "PINNED-MEMORY : \t" ;
@@ -261,10 +264,10 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   checkCudaErrors(cudaFree(d_X));
   checkCudaErrors(cudaFree(d_Y));
 
-  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
-  elapsed_init = elapsedTime(startInitTimer, endInitTimer);
-  elapsed_memcpy = elapsedTime(startMemCpyTimer, endMemCpyTimer);
-  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  elapsed_memAlloc += elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_init += elapsedTime(startInitTimer, endInitTimer);
+  elapsed_memcpy += elapsedTime(startMemCpyTimer, endMemCpyTimer);
+  elapsed_kernel += elapsedTime(startKernelTimer, endKernelTimer);
   nvtxRangePop();
 }
 
@@ -303,7 +306,7 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
   gettimeofday(&startMemCpyTimer, NULL);
   checkCudaErrors(cudaMemcpy(d_X, X, N*M*sizeof(dataType), cudaMemcpyHostToDevice));
   gettimeofday(&endMemCpyTimer, NULL);
-  elapsed_memcpy = elapsedTime(startMemCpyTimer, endMemCpyTimer);
+  elapsed_memcpy += elapsedTime(startMemCpyTimer, endMemCpyTimer);
 
   //Run the kernel couple of times before the actual timings begins
 #if !defined(VERIFY_GPU_CORRECTNESS)
@@ -327,10 +330,10 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
   gettimeofday(&endMemCpyTimer, NULL);
   elapsed_memcpy += elapsedTime(startMemCpyTimer, endMemCpyTimer);
 
-  elapsed_memAlloc = elapsedTime(startMemAllocTimer, endMemAllocTimer);
-  elapsed_init = elapsedTime(startInitTimer, endInitTimer);
-  elapsed_memcpy = elapsedTime(startMemCpyTimer, endMemCpyTimer);
-  elapsed_kernel = elapsedTime(startKernelTimer, endKernelTimer);
+  elapsed_memAlloc += elapsedTime(startMemAllocTimer, endMemAllocTimer);
+  elapsed_init += elapsedTime(startInitTimer, endInitTimer);
+  elapsed_memcpy += elapsedTime(startMemCpyTimer, endMemCpyTimer);
+  elapsed_kernel += elapsedTime(startKernelTimer, endKernelTimer);
 
 #if VERIFY_GPU_CORRECTNESS
   cout << "PAGEABLE-MEMORY : \t" ;
@@ -359,6 +362,12 @@ int main(int argc, char **argv)
       {
           N = atoi(argv[1]);
           M = atoi(argv[2]);
+      }
+      else if(argc == 4)
+      {
+          N = atoi(argv[1]);
+          M = atoi(argv[2]);
+          print_csv = true;
       }
       else
       {
@@ -417,18 +426,32 @@ int main(int argc, char **argv)
   printf("###############Using ZERO_COPY###############\n");
   zero_copy(a,rand1,elapsed_memAlloc,elapsed_init,elapsed_kernel,N,M,yOrig);
 
+  //Run all the kernels
 #elif defined(RUN_ALL)
   printf("###############Running All kernels###############\n");
-  double pageable_elapsed_memAlloc, pageable_elapsed_kernel, pageable_init, pageable_memcpy,
-         managed_elapsed_memAlloc, managed_elapsed_kernel, managed_init, managed_memcpy,
-         pinned_elapsed_memAlloc, pinned_elapsed_kernel, pinned_init, pinned_memcpy,
-         zero_elapsed_memAlloc, zero_elapsed_kernel, zero_init, zero_memcpy;
+  double pageable_elapsed_memAlloc = 0.0, pageable_elapsed_kernel = 0.0, pageable_init, pageable_memcpy = 0.0,
+         managed_elapsed_memAlloc = 0.0, managed_elapsed_kernel = 0.0, managed_init = 0.0, managed_memcpy = 0.0,
+         pinned_elapsed_memAlloc = 0.0, pinned_elapsed_kernel = 0.0, pinned_init = 0.0, pinned_memcpy = 0.0,
+         zero_elapsed_memAlloc = 0.0, zero_elapsed_kernel = 0.0, zero_init = 0.0, zero_memcpy = 0.0;
 
-  //Run all the kernels
-  pageable_host_device_memory(a, rand1, pageable_elapsed_memAlloc, pageable_memcpy, pageable_init, pageable_elapsed_kernel, N, M, yOrig);
-  pinned_memory(a, rand1, pinned_elapsed_memAlloc, pinned_memcpy, pinned_init, pinned_elapsed_kernel, N, M, yOrig);
-  managed_memory(a, rand1, managed_elapsed_memAlloc, managed_memcpy, managed_init, managed_elapsed_kernel, N, M, yOrig);
-  zero_copy(a, rand1, zero_elapsed_memAlloc, zero_memcpy, zero_init, zero_elapsed_kernel, N, M, yOrig);
+#if !defined(VERIFY_GPU_CORRECTNESS)
+  //Run the job for NUM_LOOPS number of times 
+  for(int iter = 0; iter < NUM_LOOPS; ++iter) 
+#endif
+  {
+    pageable_host_device_memory(a, rand1, pageable_elapsed_memAlloc, pageable_memcpy, pageable_init, pageable_elapsed_kernel, N, M, yOrig);
+    pinned_memory(a, rand1, pinned_elapsed_memAlloc, pinned_memcpy, pinned_init, pinned_elapsed_kernel, N, M, yOrig);
+    managed_memory(a, rand1, managed_elapsed_memAlloc, managed_memcpy, managed_init, managed_elapsed_kernel, N, M, yOrig);
+    zero_copy(a, rand1, zero_elapsed_memAlloc, zero_memcpy, zero_init, zero_elapsed_kernel, N, M, yOrig);
+  }
+
+#if !defined(VERIFY_GPU_CORRECTNESS)
+  //Take the average time for each of the runs
+    pageable_elapsed_memAlloc /= NUM_LOOPS; pageable_elapsed_kernel /= NUM_LOOPS; pageable_init /= NUM_LOOPS; pageable_memcpy /= NUM_LOOPS;
+    managed_elapsed_memAlloc /= NUM_LOOPS; managed_elapsed_kernel /= NUM_LOOPS; managed_init /= NUM_LOOPS; managed_memcpy /= NUM_LOOPS;
+    pinned_elapsed_memAlloc /= NUM_LOOPS; pinned_elapsed_kernel /= NUM_LOOPS; pinned_init /= NUM_LOOPS; pinned_memcpy /= NUM_LOOPS;
+    zero_elapsed_memAlloc /= NUM_LOOPS; zero_elapsed_kernel /= NUM_LOOPS; zero_init /= NUM_LOOPS; zero_memcpy /= NUM_LOOPS;
+#endif
 
   cudaDeviceSynchronize();
 #endif
@@ -446,17 +469,28 @@ int main(int argc, char **argv)
   double elapsed_total = elapsedTime(startTotalTimer, endTotalTimer);
 
 #if RUN_ALL
-  fprintf(stderr, "-----------------------------------------------------------------------------------------------------------------------------------\n");
-  fprintf(stderr, "Device \t Memory-Type \t MemAlloc-time[sec] \t MemCPY-time[sec] \t Kernel-time[sec] \t Kernel+MemAlloc[sec] \t Init-Values[sec]\n");
-  fprintf(stderr, "-----------------------------------------------------------------------------------------------------------------------------------\n");
-  fprintf(stderr, "0 \t pageable \t %f \t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
-  fprintf(stderr, "-----------------------------------------------------------------------------------------------------------------------------------\n");
-  fprintf(stderr, "1 \t host-pinned \t %f \t\t %f \t\t %f \t\t %f \t\t %f \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
-  fprintf(stderr, "-----------------------------------------------------------------------------------------------------------------------------------\n");
-  fprintf(stderr, "2 \t managed \t %f \t\t %f \t\t %f \t\t %f \t\t %f \n", managed_elapsed_memAlloc, managed_memcpy, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel, managed_init);
-  fprintf(stderr, "-----------------------------------------------------------------------------------------------------------------------------------\n");
-  fprintf(stderr, "3 \t zero-copy \t %f \t\t %f \t\t %f \t\t %f \t\t %f \n", zero_elapsed_memAlloc, zero_memcpy, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel, zero_init);
-  fprintf(stderr, "-----------------------------------------------------------------------------------------------------------------------------------\n");
+  if(print_csv)
+  {
+    fprintf(stderr, "Device, \t Memory-Type, \t MemAlloc-time[sec], \t MemCPY-time[sec], \t Kernel-time[sec], \t Kernel+MemAlloc[sec], \t Init-Values[sec]\n");
+    fprintf(stderr, "0, \t pageable, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
+    fprintf(stderr, "1, \t host-pinned, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
+    fprintf(stderr, "2, \t managed, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", managed_elapsed_memAlloc, managed_memcpy, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel, managed_init);
+    fprintf(stderr, "3, \t zero-copy, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f \n", zero_elapsed_memAlloc, zero_memcpy, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel, zero_init);
+  }
+  else
+  {
+    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stderr, "Device, \t Memory-Type, \t MemAlloc-time[sec], \t MemCPY-time[sec], \t Kernel-time[sec], \t Kernel+MemAlloc[sec], \t Init-Values[sec]\n");
+    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stderr, "0 \t pageable, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_elapsed_kernel, pageable_elapsed_memAlloc+pageable_elapsed_kernel, pageable_init);
+    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stderr, "1 \t host-pinned, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_elapsed_kernel, pinned_elapsed_memAlloc+pinned_elapsed_kernel,pinned_init);
+    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stderr, "2 \t managed, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f, \n", managed_elapsed_memAlloc, managed_memcpy, managed_elapsed_kernel, managed_elapsed_memAlloc+managed_elapsed_kernel, managed_init);
+    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+    fprintf(stderr, "3 \t zero-copy, \t %f, \t\t %f, \t\t %f, \t\t %f, \t\t %f \n", zero_elapsed_memAlloc, zero_memcpy, zero_elapsed_kernel, zero_elapsed_memAlloc+zero_elapsed_kernel, zero_init);
+    fprintf(stderr, "-------------------------------------------------------------------------------------------------------------------------------------------\n");
+  }
 
   cout << "************ Total-time = " << elapsed_total << " [sec] ************\n" << endl;
 
