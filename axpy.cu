@@ -83,8 +83,8 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
   checkCudaErrors(cudaGetDevice(&device));
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
-          startKernelTimer, endKernelTimer, 
-          startTotalTimer, endTotalTimer, 
+          startKernelTimer, endKernelTimer,
+          startTotalTimer, endTotalTimer,
           startInitKernel, endInitKernel;
 
   gettimeofday(&startTotalTimer, NULL);
@@ -156,8 +156,8 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
   checkCudaErrors(cudaGetDevice(&device));
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
-          startKernelTimer, endKernelTimer, 
-          startTotalTimer, endTotalTimer, 
+          startKernelTimer, endKernelTimer,
+          startTotalTimer, endTotalTimer,
           startInitKernel, endInitKernel;
 
   gettimeofday(&startTotalTimer, NULL);
@@ -166,7 +166,7 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
   dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
-  
+
   d_X = (dataType*) malloc(N*M*sizeof(dataType));
   d_Y = (dataType*) malloc(N*M*sizeof(dataType));
   gettimeofday(&endMemAllocTimer, NULL);
@@ -225,8 +225,8 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   checkCudaErrors(cudaGetDevice(&device));
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
-          startKernelTimer, endKernelTimer, 
-          startTotalTimer, endTotalTimer, 
+          startKernelTimer, endKernelTimer,
+          startTotalTimer, endTotalTimer,
           startInitKernel, endInitKernel;
 
   gettimeofday(&startTotalTimer, NULL);
@@ -235,7 +235,7 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   dim3 threads(32,1,1);
 
   gettimeofday(&startMemAllocTimer, NULL);
-  
+
   checkCudaErrors(cudaMallocManaged(&d_X, N*M*sizeof(dataType)));
   checkCudaErrors(cudaMallocManaged(&d_Y, N*M*sizeof(dataType)));
   gettimeofday(&endMemAllocTimer, NULL);
@@ -292,9 +292,9 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   checkCudaErrors(cudaGetDevice(&device));
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
-          startKernelTimer, endKernelTimer, 
-          startTotalTimer, endTotalTimer, 
-          startInitKernel, endInitKernel, 
+          startKernelTimer, endKernelTimer,
+          startTotalTimer, endTotalTimer,
+          startInitKernel, endInitKernel,
           startMemCpyTimer, endMemCpyTimer;
 
   gettimeofday(&startTotalTimer, NULL);
@@ -381,9 +381,9 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
   checkCudaErrors(cudaGetDevice(&device));
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
-          startKernelTimer, endKernelTimer, 
-          startTotalTimer, endTotalTimer, 
-          startInitKernel, endInitKernel, 
+          startKernelTimer, endKernelTimer,
+          startTotalTimer, endTotalTimer,
+          startInitKernel, endInitKernel,
           startMemCpyTimer, endMemCpyTimer;
 
   gettimeofday(&startTotalTimer, NULL);
@@ -550,8 +550,8 @@ int main(int argc, char **argv)
 #endif
 
 #if !defined(VERIFY_GPU_CORRECTNESS)
-  //Run the job for NUM_LOOPS number of times 
-  for(int iter = 0; iter < NUM_LOOPS; ++iter) 
+  //Run the job for NUM_LOOPS number of times
+  for(int iter = 0; iter < NUM_LOOPS; ++iter)
 #endif
   {
     pageable_host_device_memory(a, rand1, pageable_elapsed_memAlloc, pageable_memcpy, pageable_init, pageable_init_kernel, pageable_elapsed_kernel, pageable_total, N, M, yOrig);
@@ -601,6 +601,8 @@ int main(int argc, char **argv)
     fprintf(stdout, "3, zero-copy, %f, %f, %f, %f, %f, %f,\n", zero_elapsed_memAlloc, zero_memcpy, zero_init_kernel, zero_elapsed_kernel, zero_init, zero_total);
 #if (ON_SUMMIT)
     fprintf(stdout, "4, true-UVM, %f, %f, %f, %f, %f, %f,\n", tUVM_elapsed_memAlloc, tUVM_memcpy, tUVM_init_kernel, tUVM_elapsed_kernel, tUVM_init, tUVM_total);
+#else
+    fprintf(stdout, "4, true-UVM, --,--,--,---,-,--\n");
 #endif
   }
   else
