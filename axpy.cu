@@ -121,6 +121,7 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
   gettimeofday(&startKernelTimer, NULL);
 
   //Start actual kernel//Start Kernel Timerpinned
+  for(int iter = 0; iter < run_kernel_times; ++iter)
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
 
@@ -189,6 +190,7 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
   gettimeofday(&startKernelTimer, NULL);
 
   //Start actual kernel//Start Kernel Timerpinned
+  for(int iter = 0; iter < run_kernel_times; ++iter)
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
 
@@ -257,6 +259,7 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   gettimeofday(&startKernelTimer, NULL);
 
   //Start actual kernel//Start Kernel Timerpinned
+  for(int iter = 0; iter < run_kernel_times; ++iter)
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
 
@@ -336,6 +339,7 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
   gettimeofday(&startKernelTimer, NULL);
 
   //Start actual kernel//Start Kernel Timerpinned
+  for(int iter = 0; iter < run_kernel_times; ++iter)
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
 
@@ -423,6 +427,7 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
   gettimeofday(&startKernelTimer, NULL);
 
   //Start actual kernel//Start Kernel Timerpinned
+  for(int iter = 0; iter < run_kernel_times; ++iter)
   axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
   checkCudaErrors(cudaDeviceSynchronize());
 
