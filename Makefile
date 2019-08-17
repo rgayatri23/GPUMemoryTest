@@ -18,6 +18,8 @@ endif
 
 CHECK_CORRECTNESS = n
 TIMEMORY_PROFILE = n
+STRIDED = n
+tUVM_prefetch = n
 
 #==========================
 # Compilers
@@ -25,6 +27,14 @@ TIMEMORY_PROFILE = n
 
 ifeq ($(CHECK_CORRECTNESS),y)
 	DEFINE += -DVERIFY_GPU_CORRECTNESS
+endif
+
+ifeq ($(STRIDED),y)
+	DEFINE += -DSTRIDED
+endif
+
+ifeq ($(tUVM_prefetch),y)
+	DEFINE += -DtUVM_prefetch
 endif
 
 ifeq ($(TIMEMORY_PROFILE),y)
