@@ -844,32 +844,32 @@ int main(int argc, char **argv)
 #if RUN_ALL
   if(print_csv)
   {
-    fprintf(stdout, "Device, Memory-Type, MemAlloc-time, MemCPY-time, Initial-Kernel-time, Kernel-time, CPU_Kernel-time, Init-Values, Kernel+total,\n");
-    fprintf(stdout, "0, pageable, %f, %f, %f, %f, %f, %f, %f,\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_init_kernel, pageable_elapsed_kernel, pageable_cpu_kernel, pageable_init, pageable_total);
-    fprintf(stdout, "1, host-pinned, %f, %f, %f, %f, %f, %f, %f,\n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_init_kernel, pinned_elapsed_kernel, pinned_cpu_kernel, pinned_init,pinned_total);
-    fprintf(stdout, "3, zero-copy, %f, %f, %f, %f, %f, %f, %f,\n", zero_elapsed_memAlloc, zero_memcpy, zero_init_kernel, zero_elapsed_kernel, zero_cpu_kernel, zero_init, zero_total);
-    fprintf(stdout, "2, managed, %f, %f, %f, %f, %f, %f, %f,\n", managed_elapsed_memAlloc, managed_memcpy, managed_init_kernel, managed_elapsed_kernel, managed_cpu_kernel, managed_init, managed_total);
+    fprintf(stdout, "Device, Memory-Type, MemAlloc-time, MemCPY-time, WarmUP DAXPY, touchOnCPU, Init-Values, Kernel+total,\n");
+    fprintf(stdout, "pageable, %f, %f, %f, %f, %f, %f, %f,\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_init_kernel, pageable_elapsed_kernel, pageable_cpu_kernel, pageable_init, pageable_total);
+    fprintf(stdout, "host-pinned, %f, %f, %f, %f, %f, %f, %f,\n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_init_kernel, pinned_elapsed_kernel, pinned_cpu_kernel, pinned_init,pinned_total);
+    fprintf(stdout, "zero-copy, %f, %f, %f, %f, %f, %f, %f,\n", zero_elapsed_memAlloc, zero_memcpy, zero_init_kernel, zero_elapsed_kernel, zero_cpu_kernel, zero_init, zero_total);
+    fprintf(stdout, "managed, %f, %f, %f, %f, %f, %f, %f,\n", managed_elapsed_memAlloc, managed_memcpy, managed_init_kernel, managed_elapsed_kernel, managed_cpu_kernel, managed_init, managed_total);
 #if (ON_SUMMIT)
-    fprintf(stdout, "4, true-UVM, %f, %f, %f, %f, %f, %f, %f,\n", tUVM_elapsed_memAlloc, tUVM_memcpy, tUVM_init_kernel, tUVM_elapsed_kernel, tUVM_cpu_kernel, tUVM_init, tUVM_total);
+    fprintf(stdout, "true-UVM, %f, %f, %f, %f, %f, %f, %f,\n", tUVM_elapsed_memAlloc, tUVM_memcpy, tUVM_init_kernel, tUVM_elapsed_kernel, tUVM_cpu_kernel, tUVM_init, tUVM_total);
 #else
-    fprintf(stdout, "4, true-UVM, --,--,--,---,-,--\n");
+    fprintf(stdout, "true-UVM, --,--,--,---,-,--\n");
 #endif
   }
   else
   {
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stdout, "Device \t Memory-Type \t MemAlloc-time \t\t MemCPY-time \t\t Initial-Kernel-time \t\t Kernel-time \t\t CPU_Kernel \t\t Init-Values \t\t Kernel+total\n");
+    fprintf(stdout, "Memory-Type \t MemAlloc-time \t\t MemCPY-time \t\t WarmUP \t\t\t DAXPY \t\t\t touchOnCPU \t\t Init-Values \t\t Kernel+total\n");
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-   fprintf(stdout, "0 \t pageable \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_init_kernel, pageable_elapsed_kernel, pageable_cpu_kernel, pageable_init, pageable_total);
+    fprintf(stdout, "pageable \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_init_kernel, pageable_elapsed_kernel, pageable_cpu_kernel, pageable_init, pageable_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stdout, "1 \t host-pinned \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_init_kernel, pinned_elapsed_kernel, pinned_cpu_kernel, pinned_init,pinned_total);
+    fprintf(stdout, "host-pinned \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_init_kernel, pinned_elapsed_kernel, pinned_cpu_kernel, pinned_init,pinned_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stdout, "3 \t zero_copy \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", zero_elapsed_memAlloc, zero_memcpy, zero_init_kernel, zero_elapsed_kernel, zero_cpu_kernel, zero_init, zero_total);
+    fprintf(stdout, "zero_copy \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", zero_elapsed_memAlloc, zero_memcpy, zero_init_kernel, zero_elapsed_kernel, zero_cpu_kernel, zero_init, zero_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stdout, "2 \t managed \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", managed_elapsed_memAlloc, managed_memcpy, managed_init_kernel, managed_elapsed_kernel, managed_cpu_kernel, managed_init, managed_total);
+    fprintf(stdout, "managed \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", managed_elapsed_memAlloc, managed_memcpy, managed_init_kernel, managed_elapsed_kernel, managed_cpu_kernel, managed_init, managed_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
 #if (ON_SUMMIT)
-    fprintf(stdout, "4 \t true-UVM \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", tUVM_elapsed_memAlloc, tUVM_memcpy, tUVM_init_kernel, tUVM_elapsed_kernel, tUVM_cpu_kernel, tUVM_init, tUVM_total);
+    fprintf(stdout, "true-UVM \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", tUVM_elapsed_memAlloc, tUVM_memcpy, tUVM_init_kernel, tUVM_elapsed_kernel, tUVM_cpu_kernel, tUVM_init, tUVM_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
 #endif
   }
