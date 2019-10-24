@@ -12,6 +12,7 @@
 #include <helper_timer.h>
 #include <sys/time.h>
 #include <nvToolsExt.h>
+#include <assert.h>
 #if USE_TIMEMORY
 #include <timemory/timemory.hpp>
 #endif
@@ -21,10 +22,11 @@ using namespace std;
 
 #define check_num_values 10
 #define NUM_LOOPS 3
-#define run_k 3
-#define run_l 100
+//#define inner 7
+//#define outer 7
 #define stride 10
 bool print_csv = false;
+int inner = 1, outer = 1;
 
 //Handle 2-dim pointing
 #define Y(i,j) Y[i*M + j]
@@ -45,9 +47,9 @@ void PreComputeFewValues(int N, int M, dataType a, dataType rand1, dataType *Y, 
     for(int i = 0; i < check_num_values; ++i)
       for(int j = 0; j < M; ++j)
           X(i,j) = rand1 * (i+1);
-    for(int l = 0; l < run_l; ++l)
+    for(int l = 0; l < outer; ++l)
     {
-      for(int k = 0; k < run_k; ++k)
+      for(int k = 0; k < inner; ++k)
       {
         for(int i = 0; i < check_num_values; ++i)
           for(int j = 0; j < M; ++j)
@@ -106,10 +108,15 @@ void touchOnCPU(int N, int M, dataType a, dataType *Y, dataType *X)
 
 void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& elapsed_memcpy, double& elapsed_init, double& elapsed_init_kernel, double& elapsed_kernel, double& elapsedCPU_kernel, double& elapsed_total, int N, int M, dataType* yOrig)
 {
+  const int gpuDeviceId = 2;
   nvtxRangePushA("Zero_copy");
   int device;
-  checkCudaErrors(cudaSetDevice(3));
+  checkCudaErrors(cudaSetDevice(gpuDeviceId));
   checkCudaErrors(cudaGetDevice(&device));
+
+  //Assert that the gpuDeviceId that we assign to the kernel is the same that has been given by the setDevice call
+  assert(gpuDeviceId==device);
+
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
           startKernelTimer, endKernelTimer,
@@ -155,12 +162,12 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
 #endif
   /****************************************************/
 
-  for(int l = 0; l < run_l; ++l)
+  for(int l = 0; l < outer; ++l)
   {
     /********************Start actual kernel********************/
     gettimeofday(&startKernelTimer, NULL);
 
-    for(int k = 0; k < run_k; ++k)
+    for(int k = 0; k < inner; ++k)
 #if STRIDED
       strided_axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
 #else
@@ -200,10 +207,16 @@ void zero_copy(dataType a, dataType rand1, double& elapsed_memAlloc, double& ela
 #if defined(ON_SUMMIT)
 void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_memcpy, double& elapsed_init, double& elapsed_init_kernel, double &elapsed_kernel, double& elapsedCPU_kernel, double& elapsed_total, int N, int M, dataType *yOrig)
 {
+  const int gpuDeviceId = 0;
   nvtxRangePushA("tUVM");
   int device;
-  checkCudaErrors(cudaSetDevice(4));
+  
+  checkCudaErrors(cudaSetDevice(gpuDeviceId));
   checkCudaErrors(cudaGetDevice(&device));
+
+  //Assert that the gpuDeviceId that we assign to the kernel is the same that has been given by the setDevice call
+  assert(gpuDeviceId==device);
+
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
           startKernelTimer, endKernelTimer,
@@ -235,13 +248,13 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
   elapsed_init += elapsedTime(startInitTimer, endInitTimer);
   /****************************************************/
 
+  //Prefetch on to the GPU before the DAXPY routine
 #if defined(tUVM_prefetch)
-//  checkCudaErrors(cudaMemPrefetchAsync ( d_X, N*M*sizeof(dataType), 4, 0 ));
-//  checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), 4, 0 ));
-  checkCudaErrors(cudaMemAdvise ( (void*)d_Y, (size_t)N*M*sizeof(dataType), cudaMemAdviseSetReadMostly ,4 ));
-  checkCudaErrors(cudaMemAdvise ( (void*)d_X, (size_t)N*M*sizeof(dataType), cudaMemAdviseSetReadMostly ,4 ));
+  checkCudaErrors(cudaMemPrefetchAsync ( d_X, N*M*sizeof(dataType), gpuDeviceId, 0 ));
+  checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), gpuDeviceId, 0 ));
 #endif
-  /********************Run the kernel twice before any of the timings begin to get rid of the initial-hickups********************/
+
+  /********************WARM UP Phase - Run the GPU kernel twice and the CPU kernel before any of the timings begin to get rid of the initial-hickups********************/
 #if !defined(VERIFY_GPU_CORRECTNESS)
   //Run the kernel couple of times before the actual timings begins
   gettimeofday(&startInitKernel, NULL);
@@ -250,16 +263,28 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
   checkCudaErrors(cudaDeviceSynchronize());
   gettimeofday(&endInitKernel, NULL);
   elapsed_init_kernel += elapsedTime(startInitKernel, endInitKernel);
+
+  //Prefetch on to the CPU before the touchOnCPU routine
+#if defined(tUVM_prefetch)
+  checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), cudaCpuDeviceId, 0 ));
+#endif
+  touchOnCPU(N,M,a,d_Y,d_X);
 #endif
   /****************************************************/
+  /**********Begin the actual experiment***************/
 
-  for(int l = 0; l < run_l; ++l)
+  for(int l = 0; l < outer; ++l)
   {
     /********************Start actual kernel********************/
     gettimeofday(&startKernelTimer, NULL);
 
+    //Prefetch on to the GPU before the touchOnCPU routine
+#if defined(tUVM_prefetch)
+    checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), gpuDeviceId, 0 ));
+#endif
+
     //Start actual kernel//Start Kernel Timerpinned
-    for(int k = 0; k < run_k; ++k)
+    for(int k = 0; k < inner; ++k)
     {
 #if STRIDED
       strided_axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
@@ -275,6 +300,11 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
     elapsed_kernel += elapsedTime(startKernelTimer, endKernelTimer);
     /****************************************************/
 
+
+  //Prefetch on to the CPU before the touchOnCPU routine
+#if defined(tUVM_prefetch)
+  checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), cudaCpuDeviceId, 0 ));
+#endif
     /********************Touch on CPU********************/
     gettimeofday(&startCPUKernelTimer, NULL);
     touchOnCPU(N,M,a,d_Y,d_X);
@@ -298,13 +328,17 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
 }
 #endif
 
-
 void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_memcpy, double& elapsed_init, double& elapsed_init_kernel, double &elapsed_kernel, double& elapsedCPU_kernel, double& elapsed_total, int N, int M, dataType *yOrig)
 {
+  const int gpuDeviceId = 1;
   nvtxRangePushA("managed_memory");
   int device;
-  checkCudaErrors(cudaSetDevice(2));
+  checkCudaErrors(cudaSetDevice(gpuDeviceId));
   checkCudaErrors(cudaGetDevice(&device));
+
+  //Assert that the gpuDeviceId that we assign to the kernel is the same that has been given by the setDevice call
+  assert(gpuDeviceId==device);
+
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
           startKernelTimer, endKernelTimer,
@@ -335,8 +369,13 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   gettimeofday(&endInitTimer, NULL);
   elapsed_init += elapsedTime(startInitTimer, endInitTimer);
   /****************************************************/
+#if defined(managed_prefetch)
+  checkCudaErrors(cudaMemPrefetchAsync ( X, N*M*sizeof(dataType), gpuDeviceId, 0 ));
+  checkCudaErrors(cudaMemPrefetchAsync ( Y, N*M*sizeof(dataType), gpuDeviceId, 0 ));
+#endif
+  cudaDeviceSynchronize();
 
-  /********************Run the kernel twice before any of the timings begin to get rid of the initial-hickups********************/
+  /********************WARM UP Phase - Run the GPU kernel twice and the CPU kernel before any of the timings begin to get rid of the initial-hickups********************/
 #if !defined(VERIFY_GPU_CORRECTNESS)
   //Run the kernel couple of times before the actual timings begins
   gettimeofday(&startInitKernel, NULL);
@@ -345,17 +384,30 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   checkCudaErrors(cudaDeviceSynchronize());
   gettimeofday(&endInitKernel, NULL);
   elapsed_init_kernel += elapsedTime(startInitKernel, endInitKernel);
+
+  //Prefetch on to the CPU before the touchOnCPU routine
+#if defined(tUVM_prefetch)
+  checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), cudaCpuDeviceId, 0 ));
+#endif
+
+  touchOnCPU(N,M,a,d_Y,d_X);
 #endif
   /****************************************************/
+  /**********Begin the actual experiment***************/
 
-  for(int l = 0; l < run_l; ++l)
+  for(int l = 0; l < outer; ++l)
   {
     /********************Start actual kernel********************/
     //Start Kernel Timer
     gettimeofday(&startKernelTimer, NULL);
+    //Prefetch on to the GPU before the touchOnCPU routine
+#if defined(tUVM_prefetch)
+    checkCudaErrors(cudaMemPrefetchAsync ( d_X, N*M*sizeof(dataType), gpuDeviceId, 0 ));
+    checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), gpuDeviceId, 0 ));
+#endif
 
     //Start actual kernel//Start Kernel Timerpinned
-    for(int k = 0; k < run_k; ++k)
+    for(int k = 0; k < inner; ++k)
 #if STRIDED
       strided_axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
 #else
@@ -369,6 +421,10 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
     elapsed_kernel += elapsedTime(startKernelTimer, endKernelTimer);
     /****************************************************/
 
+  //Prefetch on to the CPU before the touchOnCPU routine
+#if defined(tUVM_prefetch)
+  checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), cudaCpuDeviceId, 0 ));
+#endif
     /********************Touch on CPU********************/
     gettimeofday(&startCPUKernelTimer, NULL);
     touchOnCPU(N,M,a,d_Y,d_X);
@@ -393,10 +449,15 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
 
 void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_memcpy, double& elapsed_init, double& elapsed_init_kernel, double &elapsed_kernel, double& elapsedCPU_kernel, double& elapsed_total, int N, int M, dataType* yOrig)
 {
+  const int gpuDeviceId = 4;
   nvtxRangePushA("pinned_memory");
   int device;
-  checkCudaErrors(cudaSetDevice(1));
+  checkCudaErrors(cudaSetDevice(gpuDeviceId));
   checkCudaErrors(cudaGetDevice(&device));
+
+  //Assert that the gpuDeviceId that we assign to the kernel is the same that has been given by the setDevice call
+  assert(gpuDeviceId==device);
+
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
           startKernelTimer, endKernelTimer,
@@ -454,13 +515,13 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
 #endif
   /****************************************************/
 
-  for(int l = 0; l < run_l; ++l)
+  for(int l = 0; l < outer; ++l)
   {
     /********************Start actual kernel********************/
     gettimeofday(&startKernelTimer, NULL);
 
     //Start actual kernel//Start Kernel Timerpinned
-    for(int k = 0; k < run_k; ++k)
+    for(int k = 0; k < inner; ++k)
 #if STRIDED
       strided_axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
 #else
@@ -516,10 +577,15 @@ void pinned_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double&
 
 void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_memcpy, double& elapsed_init, double& elapsed_init_kernel, double &elapsed_kernel, double& elapsedCPU_kernel, double& elapsed_total, int N, int M, dataType* yOrig)
 {
+  const int gpuDeviceId = 3;
   nvtxRangePushA("pageable_memory");
   int device;
-  checkCudaErrors(cudaSetDevice(0));
+  checkCudaErrors(cudaSetDevice(gpuDeviceId));
   checkCudaErrors(cudaGetDevice(&device));
+
+  //Assert that the gpuDeviceId that we assign to the kernel is the same that has been given by the setDevice call
+  assert(gpuDeviceId==device);
+
   timeval startMemAllocTimer, endMemAllocTimer,
           startInitTimer, endInitTimer,
           startKernelTimer, endKernelTimer,
@@ -575,13 +641,13 @@ void pageable_host_device_memory(dataType a, dataType rand1, double &elapsed_mem
 #endif
   /****************************************************/
 
-  for(int l = 0; l < run_l; ++l)
+  for(int l = 0; l < outer; ++l)
   {
     /********************Start actual kernel********************/
     gettimeofday(&startKernelTimer, NULL);
 
     //Start actual kernel//Start Kernel Timerpinned
-    for(int k = 0; k < run_k; ++k)
+    for(int k = 0; k < inner; ++k)
 #if STRIDED
       strided_axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
 #else
@@ -644,20 +710,24 @@ int main(int argc, char **argv)
   int N = 10, M = 10;
   if(argc > 1)
   {
-      if(argc == 3)
+      if(argc == 5)
       {
           N = atoi(argv[1]);
           M = atoi(argv[2]);
+          inner = atoi(argv[3]);
+          outer = atoi(argv[4]);
       }
-      else if(argc == 4)
+      else if(argc == 6)
       {
           N = atoi(argv[1]);
           M = atoi(argv[2]);
+          inner = atoi(argv[3]);
+          outer = atoi(argv[4]);
           print_csv = true;
       }
       else
       {
-          cout << "Input format is ./axpy.ex N M \n" << endl;
+          cout << "Input format is ./axpy.ex N M inner outer\n" << endl;
           exit(EXIT_FAILURE);
       }
   }
@@ -668,7 +738,7 @@ int main(int argc, char **argv)
   fprintf(stdout, "M = %d\t N = %d\n", M,N);
   fprintf(stdout, "Total Memory Footprint = %f GBs\n", (double)(M*N*sizeof(dataType)/(1024.0*1024.0*1024.0)));
   fprintf(stdout, "threadblocks = %d\t and data accessed by each threadblock = %f Kb\n",N,(double)(M*sizeof(double)/1024.0));
-  fprintf(stdout, "run_k = %d\t run_l = %d\n", run_k, run_l);
+  fprintf(stdout, "inner = %d\t outer = %d\n", inner, outer);
 
 #if STRIDED
       fprintf(stdout, "Strided Kernel \n");
@@ -716,7 +786,7 @@ int main(int argc, char **argv)
 #elif defined(USE_ZERO_COPY)
   double elapsed_memAlloc, elapsed_kernel, elapsed_init, elapsed_memcpy;
   printf("###############Using ZERO_COPY###############\n");
-  zero_copy(a,rand1,elapsed_memAlloc, elapsed_memcpy, elapsed_init, elapsed_kernel,N,M,yOrig);
+//  zero_copy(a,rand1,elapsed_memAlloc, elapsed_memcpy, elapsed_init, elapsed_kernel,N,M,yOrig);
 
   //Run all the kernels
 #elif defined(RUN_ALL)
@@ -748,9 +818,9 @@ int main(int argc, char **argv)
 #if !defined(VERIFY_GPU_CORRECTNESS)
   //Take the average time for each of the runs
     pageable_elapsed_memAlloc /= NUM_LOOPS; pageable_elapsed_kernel /= NUM_LOOPS; pageable_init /= NUM_LOOPS; pageable_memcpy /= NUM_LOOPS; pageable_total /= NUM_LOOPS; pageable_init_kernel /= NUM_LOOPS; pageable_cpu_kernel /= NUM_LOOPS;
-    managed_elapsed_memAlloc /= NUM_LOOPS; managed_elapsed_kernel /= NUM_LOOPS; managed_init /= NUM_LOOPS; managed_memcpy /= NUM_LOOPS; managed_total /= NUM_LOOPS; managed_init_kernel /= NUM_LOOPS; managed_cpu_kernel /= NUM_LOOPS;
     pinned_elapsed_memAlloc /= NUM_LOOPS; pinned_elapsed_kernel /= NUM_LOOPS; pinned_init /= NUM_LOOPS; pinned_memcpy /= NUM_LOOPS; pinned_total /= NUM_LOOPS; pinned_init_kernel /= NUM_LOOPS; pinned_cpu_kernel /= NUM_LOOPS;
     zero_elapsed_memAlloc /= NUM_LOOPS; zero_elapsed_kernel /= NUM_LOOPS; zero_init /= NUM_LOOPS; zero_memcpy /= NUM_LOOPS, zero_total /= NUM_LOOPS; zero_init_kernel /= NUM_LOOPS; zero_cpu_kernel /= NUM_LOOPS;
+    managed_elapsed_memAlloc /= NUM_LOOPS; managed_elapsed_kernel /= NUM_LOOPS; managed_init /= NUM_LOOPS; managed_memcpy /= NUM_LOOPS; managed_total /= NUM_LOOPS; managed_init_kernel /= NUM_LOOPS; managed_cpu_kernel /= NUM_LOOPS;
 #if (ON_SUMMIT)
     tUVM_elapsed_memAlloc /= NUM_LOOPS; tUVM_elapsed_kernel /= NUM_LOOPS; tUVM_init /= NUM_LOOPS; tUVM_memcpy /= NUM_LOOPS; tUVM_init_kernel /= NUM_LOOPS; tUVM_cpu_kernel /= NUM_LOOPS; tUVM_total /= NUM_LOOPS;
 #endif
@@ -790,11 +860,11 @@ int main(int argc, char **argv)
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
     fprintf(stdout, "Device \t Memory-Type \t MemAlloc-time \t\t MemCPY-time \t\t Initial-Kernel-time \t\t Kernel-time \t\t CPU_Kernel \t\t Init-Values \t\t Kernel+total\n");
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stdout, "0 \t pageable \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_init_kernel, pageable_elapsed_kernel, pageable_cpu_kernel, pageable_init, pageable_total);
+   fprintf(stdout, "0 \t pageable \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", pageable_elapsed_memAlloc, pageable_memcpy, pageable_init_kernel, pageable_elapsed_kernel, pageable_cpu_kernel, pageable_init, pageable_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
     fprintf(stdout, "1 \t host-pinned \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", pinned_elapsed_memAlloc, pinned_memcpy, pinned_init_kernel, pinned_elapsed_kernel, pinned_cpu_kernel, pinned_init,pinned_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
-    fprintf(stdout, "2 \t zero_copy \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", zero_elapsed_memAlloc, zero_memcpy, zero_init_kernel, zero_elapsed_kernel, zero_cpu_kernel, zero_init, zero_total);
+    fprintf(stdout, "3 \t zero_copy \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", zero_elapsed_memAlloc, zero_memcpy, zero_init_kernel, zero_elapsed_kernel, zero_cpu_kernel, zero_init, zero_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
     fprintf(stdout, "2 \t managed \t %f \t\t %f \t\t %f \t\t\t %f \t\t %f \t\t %f \t\t %f\n", managed_elapsed_memAlloc, managed_memcpy, managed_init_kernel, managed_elapsed_kernel, managed_cpu_kernel, managed_init, managed_total);
     fprintf(stdout, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n");

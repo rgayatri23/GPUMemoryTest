@@ -37,6 +37,10 @@ ifeq ($(tUVM_prefetch),y)
 	DEFINE += -DtUVM_prefetch
 endif
 
+ifeq ($(managed_prefetch),y)
+	DEFINE += -Dmanaged_prefetch
+endif
+
 ifeq ($(TIMEMORY_PROFILE),y)
 	DEFINE += -DUSE_TIMEMORY
 endif
