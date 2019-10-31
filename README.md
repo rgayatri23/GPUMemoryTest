@@ -7,6 +7,9 @@ make [options]
   TIMEMORY_PROFILE - use TiMemory to profile the kernels
   Default - Runs all kernels and prints out the timing
   CHECK_CORRECTNESS - To verify GPU correctness
+  
+  For prefetch : 
+  make tUVM_prefetch=y managed_prefetch=y 
 
 CMAKE build : 
 cmake [options] : 
