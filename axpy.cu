@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <nvToolsExt.h>
 #include <assert.h>
+#include <chrono>
 #if USE_TIMEMORY
 #include <timemory/timemory.hpp>
 #endif
@@ -21,7 +22,7 @@
 using namespace std;
 
 #define check_num_values 10
-#define NUM_LOOPS 3
+#define NUM_LOOPS 1
 //#define inner 7
 //#define outer 7
 #define stride 10
@@ -275,6 +276,7 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
   /****************************************************/
   /**********Begin the actual experiment***************/
 
+  std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();   
   for(int l = 0; l < outer; ++l)
   {
     /********************Start actual kernel********************/
@@ -284,7 +286,6 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
     gettimeofday(&startKernelTimer, NULL);
 #if defined(tUVM_prefetch)
     checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), gpuDeviceId, 0 ));
-    cudaDeviceSynchronize();
 #endif
     for(int k = 0; k < inner; ++k)
       axpyKernel <<<grid,threads>>> (N,M,a,d_Y,d_X);
@@ -296,13 +297,11 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
     elapsed_kernel += elapsedTime(startKernelTimer, endKernelTimer);
     /****************************************************/
 
-
     /*Start touchOnCPU timer */
     gettimeofday(&startCPUKernelTimer, NULL);
   //Prefetch on to the CPU before the touchOnCPU routine
 #if defined(tUVM_prefetch)
   checkCudaErrors(cudaMemPrefetchAsync ( d_Y, N*M*sizeof(dataType), cudaCpuDeviceId, 0 ));
-  cudaDeviceSynchronize();
 #endif
     checkCudaErrors(cudaDeviceSynchronize());
     /********************Touch on CPU********************/
@@ -312,6 +311,9 @@ void tUVM(dataType a, dataType rand1, double &elapsed_memAlloc, double& elapsed_
     elapsedCPU_kernel += elapsedTime(startCPUKernelTimer, endCPUKernelTimer);
     /****************************************************/
   }
+
+  std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();   std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);   
+  std::cout << "UVM : Total runtime = " << time_span.count() * 1000000 << " us\n";
 
 #if VERIFY_GPU_CORRECTNESS
   cout << "TUVM : \t" ;
@@ -399,6 +401,7 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
   /****************************************************/
   /**********Begin the actual experiment***************/
 
+  std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();   
   for(int l = 0; l < outer; ++l)
   {
     /********************Start actual kernel********************/
@@ -438,6 +441,8 @@ void managed_memory(dataType a, dataType rand1, double &elapsed_memAlloc, double
     elapsedCPU_kernel += elapsedTime(startCPUKernelTimer, endCPUKernelTimer);
     /****************************************************/
   }
+  std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();   std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);   
+  std::cout << "MANAGED : Total runtime = " << time_span.count() * 1000000 << " us\n";
 
 #if VERIFY_GPU_CORRECTNESS
   cout << "MANAGED-MEMORY : \t" ;
