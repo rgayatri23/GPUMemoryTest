@@ -17,11 +17,13 @@ cmake [options] :
   TIMEMORY_PROFILE - use TiMemory to profile the kernels
 
 Run the application : 
-  ./axpy.ex N M 
+  ./axpy.ex N M inner outer
+On Summit : 
+jsrun -n 1 -a 1 -c 1 -g 6 ./axpy.ex N M inner outer
 
   To redirect the numbers to a csv-file
-  N - number of rows
-  M - number of collumns
+  outer - number of rows
+  inner - number of collumns
   1 - Prepare the output for printing it out to csv
   1 - redirect stdout output
   2 - redirect sterr output
